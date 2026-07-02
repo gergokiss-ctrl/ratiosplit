@@ -14,6 +14,11 @@ enum MonthStatus {
   LOCKED
 }
 
+enum RatioMode {
+  AUTO_FROM_INCOME
+  MANUAL
+}
+
 enum SplitType {
   MONTHLY_RATIO
   EQUAL
@@ -35,15 +40,17 @@ enum CurrencyCode {
 }
 
 model Person {
-  id           String   @id @default(cuid())
-  name         String
-  displayOrder Int
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String   @id @default(cuid())
+  name          String
+  displayOrder  Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  paidExpenses Expense[] @relation("ExpensePaidBy")
-  customSplits ExpenseCustomSplit[]
+  paidExpenses  Expense[] @relation("ExpensePaidBy")
+  customSplits  ExpenseCustomSplit[]
+  incomeSources IncomeSource[]
+  monthlyIncomes MonthlyIncome[]
 }
 
 model Month {
@@ -51,14 +58,50 @@ model Month {
   monthKey        String      @unique
   person1RatioBps Int?
   person2RatioBps Int?
+  ratioMode       RatioMode   @default(AUTO_FROM_INCOME)
   status          MonthStatus @default(OPEN)
   settlementNote  String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
 
   expenses        Expense[]
+  monthlyIncomes  MonthlyIncome[]
 
   @@index([monthKey])
+}
+
+model IncomeSource {
+  id                String   @id @default(cuid())
+  personId          String
+  person            Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  name              String
+  defaultAmountHufMinor Int?
+  isEnabled         Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  monthlyIncomes    MonthlyIncome[]
+
+  @@index([personId])
+}
+
+model MonthlyIncome {
+  id                String   @id @default(cuid())
+  monthKey          String
+  month             Month    @relation(fields: [monthKey], references: [monthKey], onDelete: Cascade)
+  personId          String
+  person            Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  incomeSourceId    String
+  incomeSource      IncomeSource @relation(fields: [incomeSourceId], references: [id], onDelete: Cascade)
+  amountHufMinor    Int?
+  isIncluded        Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([monthKey, incomeSourceId])
+  @@index([monthKey])
+  @@index([personId])
 }
 
 model Expense {
@@ -121,7 +164,7 @@ model Category {
 model AppSetting {
   id           String       @id @default(cuid())
   baseCurrency CurrencyCode @default(HUF)
-  locale       String       @default("hu-HU")
+  locale       String       @default("en-US")
   timezone     String       @default("Europe/Budapest")
   person1Id    String?
   person2Id    String?
