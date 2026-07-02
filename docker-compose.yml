@@ -1,0 +1,16 @@
+# Local development / local build compose.
+# Production/Unraid GHCR compose is in deploy/docker-compose.ghcr.yml.
+services:
+  ratiosplit-app:
+    build: .
+    container_name: ratiosplit-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/data/ratiosplit.db
+      APP_BASE_CURRENCY: HUF
+      APP_DEFAULT_LOCALE: hu-HU
+      APP_TIMEZONE: Europe/Budapest
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data

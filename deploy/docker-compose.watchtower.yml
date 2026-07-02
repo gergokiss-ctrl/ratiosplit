@@ -1,0 +1,30 @@
+# Optional automatic update setup.
+# Replace OWNER with your GitHub username or organization.
+# Use only after you are comfortable with automatic updates.
+services:
+  ratiosplit-app:
+    image: ghcr.io/OWNER/ratiosplit:latest
+    container_name: ratiosplit-app
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    environment:
+      DATABASE_URL: file:/data/ratiosplit.db
+      APP_BASE_CURRENCY: HUF
+      APP_DEFAULT_LOCALE: hu-HU
+      APP_TIMEZONE: Europe/Budapest
+    ports:
+      - "3000:3000"
+    volumes:
+      - /mnt/user/appdata/ratiosplit/data:/data
+
+  watchtower:
+    image: nickfedor/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_POLL_INTERVAL: "3600"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
