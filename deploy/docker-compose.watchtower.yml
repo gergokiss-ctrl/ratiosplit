@@ -1,9 +1,6 @@
-# Optional automatic update setup.
-# Replace OWNER with your GitHub username or organization.
-# Use only after you are comfortable with automatic updates.
 services:
   ratiosplit-app:
-    image: ghcr.io/OWNER/ratiosplit:latest
+    image: ghcr.io/gergokiss-ctrl/ratiosplit:latest
     container_name: ratiosplit-app
     restart: unless-stopped
     labels:
@@ -11,10 +8,10 @@ services:
     environment:
       DATABASE_URL: file:/data/ratiosplit.db
       APP_BASE_CURRENCY: HUF
-      APP_DEFAULT_LOCALE: hu-HU
+      APP_DEFAULT_LOCALE: en-US
       APP_TIMEZONE: Europe/Budapest
     ports:
-      - "3000:3000"
+      - "3003:3000"
     volumes:
       - /mnt/user/appdata/ratiosplit/data:/data
 

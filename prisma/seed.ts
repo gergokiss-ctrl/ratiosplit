@@ -1,42 +1,23 @@
 import { PrismaClient, CurrencyCode } from "@prisma/client";
 const prisma = new PrismaClient();
-
 async function main() {
-  const existing = await prisma.appSetting.findFirst();
-  if (existing) {
-    console.log("Seed már korábban lefutott.");
-    return;
+  let settings = await prisma.appSetting.findFirst();
+  let gergo = await prisma.person.findFirst({ where: { displayOrder: 1 } });
+  if (!gergo) gergo = await prisma.person.create({ data: { name: "Gergo", displayOrder: 1 } });
+  let partner = await prisma.person.findFirst({ where: { displayOrder: 2 } });
+  if (!partner) partner = await prisma.person.create({ data: { name: "Partner", displayOrder: 2 } });
+  if (!settings) {
+    settings = await prisma.appSetting.create({ data: { baseCurrency: CurrencyCode.HUF, locale: "en-US", timezone: "Europe/Budapest", person1Id: gergo.id, person2Id: partner.id } });
+  } else {
+    await prisma.appSetting.update({ where: { id: settings.id }, data: { locale: "en-US", timezone: "Europe/Budapest", person1Id: settings.person1Id ?? gergo.id, person2Id: settings.person2Id ?? partner.id } });
   }
-
-  const gergo = await prisma.person.create({ data: { name: "Gergo", displayOrder: 1 } });
-  const partner = await prisma.person.create({ data: { name: "Partner", displayOrder: 2 } });
-
-  await prisma.appSetting.create({
-    data: {
-      baseCurrency: CurrencyCode.HUF,
-      locale: "hu-HU",
-      timezone: "Europe/Budapest",
-      person1Id: gergo.id,
-      person2Id: partner.id,
-    },
-  });
-
-  const categories: Array<[string, string, string]> = [
-    ["Élelmiszer", "shopping-cart", "#16a34a"],
-    ["Lakás", "home", "#2563eb"],
-    ["Autó", "car", "#f97316"],
-    ["Étterem", "utensils", "#dc2626"],
-    ["Utazás", "plane", "#7c3aed"],
-    ["Egészség", "heart-pulse", "#db2777"],
-    ["Egyéb", "circle-dot", "#64748b"],
-  ];
-
+  const categories: Array<[string, string, string]> = [["Groceries","shopping-cart","#77C043"],["Home","home","#00539B"],["Car","car","#FF8A1D"],["Restaurant","utensils","#F97316"],["Travel","plane","#38BDF8"],["Health","heart-pulse","#22C55E"],["Other","circle-dot","#64748B"]];
   for (let i = 0; i < categories.length; i++) {
-    await prisma.category.create({
-      data: { name: categories[i][0], icon: categories[i][1], color: categories[i][2], sortOrder: i + 1 },
-    });
+    const [name, icon, color] = categories[i]; const sortOrder = i + 1;
+    const existingBySortOrder = await prisma.category.findFirst({ where: { sortOrder } });
+    if (existingBySortOrder) await prisma.category.update({ where: { id: existingBySortOrder.id }, data: { name, icon, color, isActive: true } });
+    else await prisma.category.upsert({ where: { name }, update: { icon, color, sortOrder, isActive: true }, create: { name, icon, color, sortOrder, isActive: true } });
   }
-  console.log("Seed kész.");
+  console.log("Seed/update completed.");
 }
-
 main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => prisma.$disconnect());
