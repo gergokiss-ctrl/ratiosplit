@@ -93,7 +93,7 @@ model IncomeSource {
 model MonthlyIncome {
   id                String       @id @default(cuid())
   monthKey          String
-  month             Month        @relation(fields: [monthKey], references: [monthKey], onDelete: Cascade)
+  month             Month        @relation(fields: [monthKey], references: [id], onDelete: Cascade)
   personId          String
   person            Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
   incomeSourceId    String

@@ -9,45 +9,15 @@ export async function POST(req: Request) {
     const name = String(body.name ?? "").trim();
     if (!personId) throw new Error("Person is required.");
     if (!name) throw new Error("Income source name is required.");
-
     const isOneTime = Boolean(body.isOneTime);
-    const defaultAmountHufMinor = body.defaultAmount === "" || body.defaultAmount === null || body.defaultAmount === undefined
-      ? null
-      : parseMoneyToMinor(body.defaultAmount);
+    const defaultAmountHufMinor = body.defaultAmount === "" || body.defaultAmount === null || body.defaultAmount === undefined ? null : parseMoneyToMinor(body.defaultAmount);
     const count = await prisma.incomeSource.count({ where: { personId } });
-
-    const result = await prisma.$transaction(async (tx) => {
-      const source = await tx.incomeSource.create({
-        data: {
-          personId,
-          name,
-          defaultAmountHufMinor,
-          isOneTime,
-          isEnabled: isOneTime ? false : (body.isEnabled ?? true),
-          archivedAt: isOneTime ? new Date() : null,
-          sortOrder: count + 1,
-        },
-      });
-
-      if (isOneTime && body.monthKey) {
-        const monthKey = String(body.monthKey);
-        await tx.month.upsert({ where: { monthKey }, update: {}, create: { monthKey } });
-        await tx.monthlyIncome.create({
-          data: {
-            monthKey,
-            personId,
-            incomeSourceId: source.id,
-            amountHufMinor: defaultAmountHufMinor,
-            isIncluded: true,
-          },
-        });
-      }
-
-      return source;
-    });
-
-    return NextResponse.json(result, { status: 201 });
-  } catch (e:any) {
-    return NextResponse.json({ error: e.message ?? "Something went wrong." }, { status: 400 });
-  }
+    const source = await prisma.incomeSource.create({ data: { personId, name, defaultAmountHufMinor, isOneTime, isEnabled: isOneTime ? false : (body.isEnabled ?? true), archivedAt: isOneTime ? new Date() : null, sortOrder: count + 1 } });
+    if (isOneTime && body.monthKey) {
+      const monthKey = String(body.monthKey);
+      await prisma.month.upsert({ where: { monthKey }, update: {}, create: { monthKey } });
+      await prisma.monthlyIncome.create({ data: { monthKey, personId, incomeSourceId: source.id, amountHufMinor: defaultAmountHufMinor, isIncluded: true } });
+    }
+    return NextResponse.json(source, { status: 201 });
+  } catch (e:any) { return NextResponse.json({ error: e.message ?? "Something went wrong." }, { status: 400 }); }
 }

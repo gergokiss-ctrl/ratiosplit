@@ -128,3 +128,23 @@
 .income-source-row { grid-template-columns: minmax(0, 1fr) 120px auto auto !important; }
 @media (max-width: 720px) { .income-source-row { grid-template-columns: 1fr !important; } }
 
+
+
+/* Patch 18 - income row actions */
+.income-row {
+  grid-template-columns: minmax(0, 1fr) 140px auto auto !important;
+}
+.income-row .income-action {
+  min-height: 38px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+@media (max-width: 720px) {
+  .income-row {
+    grid-template-columns: 1fr !important;
+  }
+  .income-row .income-action {
+    width: 100%;
+  }
+}
+
