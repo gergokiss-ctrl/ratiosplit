@@ -8,6 +8,41 @@ function isStatusChangeOnly(body: any) {
   return keys.length === 1 && keys[0] === "status";
 }
 
+async function validateMonthCanBeLocked(monthKey: string) {
+  const people = await prisma.person.findMany({
+    where: { isActive: true },
+    orderBy: { displayOrder: "asc" },
+    take: 2,
+  });
+
+  const enabledSources = await prisma.incomeSource.findMany({
+    where: {
+      isEnabled: true,
+      personId: { in: people.map((p) => p.id) },
+    },
+    include: { person: true },
+    orderBy: [{ personId: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+
+  const missing: string[] = [];
+
+  for (const source of enabledSources) {
+    const row = await prisma.monthlyIncome.findUnique({
+      where: { monthKey_incomeSourceId: { monthKey, incomeSourceId: source.id } },
+    });
+
+    if (!row || row.amountHufMinor === null || row.amountHufMinor === undefined) {
+      missing.push(`${source.person.name}: ${source.name}`);
+    }
+  }
+
+  if (missing.length > 0) {
+    return `Cannot lock this month. Missing income values: ${missing.join(", ")}.`;
+  }
+
+  return null;
+}
+
 export async function GET(_req: Request, ctx: { params: Promise<{ monthKey:string }> }) {
   const { monthKey } = await ctx.params;
   const month = await prisma.month.upsert({ where:{ monthKey }, update:{}, create:{ monthKey } });
@@ -30,6 +65,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ monthKey:stri
       if (body.status !== "OPEN" && body.status !== "LOCKED") {
         return NextResponse.json({ error: "Invalid month status." }, { status: 400 });
       }
+
+      if (body.status === "LOCKED") {
+        const validationError = await validateMonthCanBeLocked(monthKey);
+        if (validationError) {
+          return NextResponse.json({ error: validationError }, { status: 400 });
+        }
+      }
+
       data.status = body.status as MonthStatus;
     }
 
