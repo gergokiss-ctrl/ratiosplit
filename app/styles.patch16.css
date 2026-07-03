@@ -1,0 +1,16 @@
+
+/* Patch 16 fixed - CSS additions */
+@media (max-width: 720px) {
+  .drawer.review .action-row {
+    position: static !important;
+    bottom: auto !important;
+    background: transparent !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
+    padding: 0 !important;
+    border-top: 0 !important;
+  }
+}
+.income-source-row { grid-template-columns: minmax(0, 1fr) 120px auto auto !important; }
+@media (max-width: 720px) { .income-source-row { grid-template-columns: 1fr !important; } }
