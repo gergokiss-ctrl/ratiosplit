@@ -4,7 +4,7 @@ COPY package*.json ./
 RUN npm config set fetch-retries 5 \
     && npm config set fetch-retry-mintimeout 20000 \
     && npm config set fetch-retry-maxtimeout 120000 \
-    && npm ci --prefer-offline --no-audit --fund=false
+    && npm install --prefer-offline --no-audit --fund=false
 
 FROM node:22-alpine AS builder
 WORKDIR /app
@@ -24,4 +24,5 @@ COPY --from=builder /app/prisma ./prisma
 RUN mkdir -p /data
 EXPOSE 3000
 CMD ["sh", "-c", "npx prisma db push && npm run prisma:seed && npm run start"]
+
 
