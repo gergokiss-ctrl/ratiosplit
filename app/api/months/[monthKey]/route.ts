@@ -3,9 +3,9 @@ import { MonthStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parsePercentToBps } from "@/lib/money";
 
-function isStatusChangeOnly(body: any) {
+function isStatusOrSettlementOnly(body: any) {
   const keys = Object.keys(body ?? {});
-  return keys.length === 1 && keys[0] === "status";
+  return keys.length > 0 && keys.every((key) => key === "status" || key === "settled");
 }
 
 async function validateMonthCanBeLocked(monthKey: string) {
@@ -18,7 +18,7 @@ async function validateMonthCanBeLocked(monthKey: string) {
   const enabledSources = await prisma.incomeSource.findMany({
     where: {
       isEnabled: true,
-      personId: { in: people.map((p) => p.id) },
+      personId: { in: people.map((person) => person.id) },
     },
     include: { person: true },
     orderBy: [{ personId: "asc" }, { sortOrder: "asc" }, { createdAt: "asc" }],
@@ -30,6 +30,9 @@ async function validateMonthCanBeLocked(monthKey: string) {
     const row = await prisma.monthlyIncome.findUnique({
       where: { monthKey_incomeSourceId: { monthKey, incomeSourceId: source.id } },
     });
+
+    // Only included monthly income rows are mandatory. Disabled/excluded rows can stay empty.
+    if (row && row.isIncluded === false) continue;
 
     if (!row || row.amountHufMinor === null || row.amountHufMinor === undefined) {
       missing.push(`${source.person.name}: ${source.name}`);
@@ -55,7 +58,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ monthKey:stri
     const body = await req.json();
     const existing = await prisma.month.upsert({ where:{ monthKey }, update:{}, create:{ monthKey } });
 
-    if (existing.status === "LOCKED" && !isStatusChangeOnly(body)) {
+    if (existing.status === "LOCKED" && !isStatusOrSettlementOnly(body)) {
       return NextResponse.json({ error: "This month is locked. Unlock it before editing ratio settings." }, { status: 423 });
     }
 
@@ -74,6 +77,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ monthKey:stri
       }
 
       data.status = body.status as MonthStatus;
+    }
+
+    if (body.settled !== undefined) {
+      data.settledAt = body.settled ? new Date() : null;
     }
 
     if (body.person1Percent !== undefined && body.person1Percent !== "") {
