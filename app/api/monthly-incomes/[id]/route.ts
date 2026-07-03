@@ -5,6 +5,12 @@ import { parseMoneyToMinor } from "@/lib/money";
 export async function PATCH(req: Request, ctx: { params: Promise<{ id:string }> }) {
   try {
     const { id } = await ctx.params;
+    const existing = await prisma.monthlyIncome.findUnique({ where: { id }, include: { month: true } });
+    if (!existing) return NextResponse.json({ error: "Income row not found." }, { status: 404 });
+    if (existing.month.status === "LOCKED") {
+      return NextResponse.json({ error: "This month is locked. Unlock it before editing incomes." }, { status: 423 });
+    }
+
     const body = await req.json();
     const data: any = {};
     if (body.amount !== undefined) data.amountHufMinor = body.amount === "" || body.amount === null ? null : parseMoneyToMinor(body.amount);
