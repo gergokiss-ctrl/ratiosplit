@@ -5,3 +5,91 @@
 @media (max-width:1060px){.header{grid-template-columns:1fr}.main-layout{grid-template-columns:1fr}.right-column{order:-1}.filters{grid-template-columns:1fr 1fr}.month-controls{grid-template-columns:44px minmax(0,1fr) 44px auto}.hero-subgrid{grid-template-columns:1fr 1fr}}
 @media (max-width:720px){body{background:linear-gradient(180deg,var(--navy-900) 0,var(--navy-900) 225px,var(--surface) 225px,var(--surface) 100%)}.shell{padding:calc(22px + env(safe-area-inset-top,0px)) 12px calc(28px + env(safe-area-inset-bottom,0px))}.header{min-height:188px;align-items:start}.h-title{font-size:26px}.h-sub{font-size:13px}.logo-mark{width:43px;height:43px}.row{grid-template-columns:1fr}.month-controls{grid-template-columns:42px minmax(0,1fr) 42px}.month-controls .field{grid-column:2;grid-row:1}.month-controls .review-btn,.month-controls .lock-btn{grid-column:1/-1}.hero{margin-top:10px}.hero-subgrid{grid-template-columns:1fr}.section-title{font-size:20px}.table-wrap{display:none}.expense-list-mobile{display:grid}.income-row,.income-source-row{grid-template-columns:1fr}.income-person-head{align-items:flex-start;flex-direction:column}.filters{grid-template-columns:1fr}.drawer-backdrop{padding:0}.drawer{position:fixed;inset:0;width:100%;height:100dvh;max-height:100dvh;border-radius:0;border:0;padding:calc(22px + env(safe-area-inset-top,0px)) 16px calc(36px + env(safe-area-inset-bottom,0px));}.drawer.review .drawer-head h2{font-size:30px;line-height:1.08}.drawer.review .action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))}.drawer.review .action-row .btn{width:100%}.review-grid{grid-template-columns:1fr}.metric-mini-grid{grid-template-columns:1fr}}
 @media (max-width:440px){.edit-actions{grid-template-columns:1fr}.expense-item-header{align-items:flex-start}.expense-right{align-items:flex-end}}
+
+
+/* Patch 15 - mobile month picker and modal lock refinements */
+@media (max-width: 720px) {
+  .month-controls {
+    grid-template-columns: 52px minmax(0, 1fr) 52px !important;
+    gap: 10px !important;
+    width: 100% !important;
+  }
+
+  .month-controls .field {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .month-controls .month-nav-btn {
+    grid-row: 1 !important;
+    width: 52px !important;
+    min-width: 52px !important;
+    height: 52px !important;
+  }
+
+  .month-controls .month-nav-btn:first-child {
+    grid-column: 1 !important;
+  }
+
+  .month-controls .month-nav-btn:nth-of-type(2) {
+    grid-column: 3 !important;
+  }
+
+  .month-controls input[type="month"] {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    height: 52px !important;
+    text-align: center !important;
+    font-size: 18px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    overflow: hidden !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
+
+  .month-controls .review-btn,
+  .month-controls .lock-btn {
+    grid-column: 1 / -1 !important;
+  }
+
+  .drawer-backdrop {
+    position: fixed !important;
+    inset: 0 !important;
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+    touch-action: none !important;
+  }
+
+  .drawer {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    touch-action: pan-y !important;
+  }
+
+  .drawer.review {
+    padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .drawer.review .action-row {
+    position: sticky !important;
+    bottom: 0 !important;
+    background: linear-gradient(180deg, rgba(255,255,255,0.78), #ffffff 35%) !important;
+    margin-left: -16px !important;
+    margin-right: -16px !important;
+    margin-bottom: calc(-28px - env(safe-area-inset-bottom, 0px)) !important;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+    border-top: 1px solid #e5e9ef !important;
+  }
+}
+
