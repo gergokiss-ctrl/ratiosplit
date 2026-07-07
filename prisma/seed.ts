@@ -1,51 +1,136 @@
-import { PrismaClient, CurrencyCode } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+
 const prisma = new PrismaClient();
 
-async function ensureDefaultIncomeSource(personId: string, name: string, sortOrder: number) {
-  const existing = await prisma.incomeSource.findFirst({ where: { personId, name } });
-  if (!existing) {
-    await prisma.incomeSource.create({ data: { personId, name, sortOrder, isEnabled: true, defaultAmountHufMinor: null } });
+async function ensurePerson(displayOrder: number, name: string) {
+  const existing = await prisma.person.findFirst({ where: { displayOrder } });
+  if (existing) {
+    return prisma.person.update({
+      where: { id: existing.id },
+      data: { name, isActive: true },
+    });
   }
+
+  return prisma.person.create({
+    data: { name, displayOrder, isActive: true },
+  });
+}
+
+async function ensureCategory(input: { name: string; icon: string; color: string; sortOrder: number }) {
+  const existingByName = await prisma.category.findUnique({ where: { name: input.name } });
+
+  if (existingByName) {
+    return prisma.category.update({
+      where: { id: existingByName.id },
+      data: {
+        icon: input.icon,
+        color: input.color,
+        sortOrder: input.sortOrder,
+        isActive: existingByName.isActive,
+      },
+    });
+  }
+
+  return prisma.category.create({
+    data: {
+      name: input.name,
+      icon: input.icon,
+      color: input.color,
+      sortOrder: input.sortOrder,
+      isActive: true,
+    },
+  });
+}
+
+async function ensureIncomeSource(input: { personId: string; name: string; defaultAmountHufMinor?: number | null; sortOrder: number }) {
+  const existing = await prisma.incomeSource.findFirst({
+    where: {
+      personId: input.personId,
+      name: input.name,
+      archivedAt: null,
+      isOneTime: false,
+    },
+  });
+
+  if (existing) {
+    return prisma.incomeSource.update({
+      where: { id: existing.id },
+      data: {
+        sortOrder: input.sortOrder,
+        isEnabled: existing.isEnabled,
+        defaultAmountHufMinor: existing.defaultAmountHufMinor ?? input.defaultAmountHufMinor ?? null,
+      },
+    });
+  }
+
+  return prisma.incomeSource.create({
+    data: {
+      personId: input.personId,
+      name: input.name,
+      defaultAmountHufMinor: input.defaultAmountHufMinor ?? null,
+      isEnabled: true,
+      isOneTime: false,
+      sortOrder: input.sortOrder,
+    },
+  });
+}
+
+async function ensureAppSettings(person1Id: string, person2Id: string) {
+  const existing = await prisma.appSetting.findFirst();
+  if (existing) {
+    return prisma.appSetting.update({
+      where: { id: existing.id },
+      data: {
+        baseCurrency: existing.baseCurrency,
+        locale: existing.locale || "hu-HU",
+        timezone: existing.timezone || "Europe/Budapest",
+        person1Id: existing.person1Id ?? person1Id,
+        person2Id: existing.person2Id ?? person2Id,
+      },
+    });
+  }
+
+  return prisma.appSetting.create({
+    data: {
+      baseCurrency: "HUF",
+      locale: "hu-HU",
+      timezone: "Europe/Budapest",
+      person1Id,
+      person2Id,
+    },
+  });
 }
 
 async function main() {
-  let settings = await prisma.appSetting.findFirst();
+  const person1 = await ensurePerson(1, "Gergő");
+  const person2 = await ensurePerson(2, "Judit");
 
-  let gergo = await prisma.person.findFirst({ where: { displayOrder: 1 } });
-  if (!gergo) gergo = await prisma.person.create({ data: { name: "Gergő", displayOrder: 1 } });
-  else if (gergo.name !== "Gergő") gergo = await prisma.person.update({ where: { id: gergo.id }, data: { name: "Gergő" } });
-
-  let judit = await prisma.person.findFirst({ where: { displayOrder: 2 } });
-  if (!judit) judit = await prisma.person.create({ data: { name: "Judit", displayOrder: 2 } });
-  else if (judit.name !== "Judit") judit = await prisma.person.update({ where: { id: judit.id }, data: { name: "Judit" } });
-
-  if (!settings) {
-    settings = await prisma.appSetting.create({ data: { baseCurrency: CurrencyCode.HUF, locale: "en-US", timezone: "Europe/Budapest", person1Id: gergo.id, person2Id: judit.id } });
-  } else {
-    await prisma.appSetting.update({ where: { id: settings.id }, data: { locale: "en-US", timezone: "Europe/Budapest", person1Id: gergo.id, person2Id: judit.id } });
-  }
-
-  await ensureDefaultIncomeSource(gergo.id, "Salary", 1);
-  await ensureDefaultIncomeSource(judit.id, "Salary", 1);
-
-  const categories: Array<[string, string, string]> = [
-    ["Groceries", "shopping-cart", "#77C043"],
-    ["Home", "home", "#00539B"],
-    ["Car", "car", "#FF8A1D"],
-    ["Restaurant", "utensils", "#F97316"],
-    ["Travel", "plane", "#38BDF8"],
-    ["Health", "heart-pulse", "#22C55E"],
-    ["Other", "circle-dot", "#64748B"],
+  const categories = [
+    { name: "Groceries", icon: "shopping-cart", color: "#22C55E", sortOrder: 10 },
+    { name: "Restaurant", icon: "utensils", color: "#F97316", sortOrder: 20 },
+    { name: "Car", icon: "car", color: "#3B82F6", sortOrder: 30 },
+    { name: "Utilities", icon: "bolt", color: "#EAB308", sortOrder: 40 },
+    { name: "Home", icon: "home", color: "#8B5CF6", sortOrder: 50 },
+    { name: "Other", icon: "circle-dot", color: "#64748B", sortOrder: 999 },
   ];
 
-  for (let i = 0; i < categories.length; i++) {
-    const [name, icon, color] = categories[i];
-    const sortOrder = i + 1;
-    const existingBySortOrder = await prisma.category.findFirst({ where: { sortOrder } });
-    if (existingBySortOrder) await prisma.category.update({ where: { id: existingBySortOrder.id }, data: { name, icon, color, isActive: true } });
-    else await prisma.category.upsert({ where: { name }, update: { icon, color, sortOrder, isActive: true }, create: { name, icon, color, sortOrder, isActive: true } });
+  for (const category of categories) {
+    await ensureCategory(category);
   }
 
-  console.log("Seed/update completed.");
+  await ensureIncomeSource({ personId: person1.id, name: "Salary", sortOrder: 10 });
+  await ensureIncomeSource({ personId: person2.id, name: "Salary", sortOrder: 10 });
+
+  await ensureAppSettings(person1.id, person2.id);
+
+  console.log("Seed completed safely.");
 }
-main().catch((error) => { console.error(error); process.exit(1); }).finally(async () => prisma.$disconnect());
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });
