@@ -23,6 +23,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 RUN mkdir -p /data
 EXPOSE 3000
-CMD ["sh", "-c", "npx prisma db push && npm run prisma:seed && npm run start"]
+CMD ["sh", "-c", "npx prisma db push && npx prisma generate && npm run prisma:seed && (node scripts/auto-backup.mjs &) && npm start"]
+
 
 
