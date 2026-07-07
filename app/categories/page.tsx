@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -17,6 +18,21 @@ function orderedCategories(categories: Category[]) {
   return [...categories].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
 }
 
+function loadBool(key: string, fallback: boolean) {
+  try {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value === "1";
+  } catch {
+    return fallback;
+  }
+}
+
+function saveBool(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, value ? "1" : "0");
+  } catch {}
+}
+
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [editing, setEditing] = useState<Record<string, Category>>({});
@@ -25,21 +41,23 @@ export default function CategoriesPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
   const [newOpen, setNewOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(true);
+  const [orderingOpen, setOrderingOpen] = useState(true);
+  const [deletionRulesOpen, setDeletionRulesOpen] = useState(true);
   const [advancedIds, setAdvancedIds] = useState<Record<string, boolean>>({});
   const [newAdvancedOpen, setNewAdvancedOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("rs-category-new-open");
-      if (saved !== null) setNewOpen(saved === "1");
-    } catch {}
+    setNewOpen(loadBool("rs-category-new-open", false));
+    setCategoriesOpen(loadBool("rs-category-categories-open", true));
+    setOrderingOpen(loadBool("rs-category-ordering-open", true));
+    setDeletionRulesOpen(loadBool("rs-category-deletion-rules-open", true));
   }, []);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("rs-category-new-open", newOpen ? "1" : "0");
-    } catch {}
-  }, [newOpen]);
+  useEffect(() => saveBool("rs-category-new-open", newOpen), [newOpen]);
+  useEffect(() => saveBool("rs-category-categories-open", categoriesOpen), [categoriesOpen]);
+  useEffect(() => saveBool("rs-category-ordering-open", orderingOpen), [orderingOpen]);
+  useEffect(() => saveBool("rs-category-deletion-rules-open", deletionRulesOpen), [deletionRulesOpen]);
 
   async function loadCategories() {
     const res = await fetch("/api/categories");
@@ -106,7 +124,7 @@ export default function CategoriesPage() {
   }
 
   async function hideCategory(id: string) {
-    if (!confirm("Hide this category? Existing expenses will keep it, but it will no longer be active.")) return;
+    if (!confirm("Hide this category from new expenses? Existing expenses will keep this category.")) return;
 
     const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
@@ -116,7 +134,7 @@ export default function CategoriesPage() {
       return;
     }
 
-    setMessage("Category hidden.");
+    setMessage("Category hidden from new expenses.");
     await loadCategories();
   }
 
@@ -221,7 +239,7 @@ export default function CategoriesPage() {
                     <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Utilities" />
                   </div>
 
-                  <label><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} /> Active</label>
+                  <label><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} /> Available for new expenses</label>
 
                   <button type="button" className="btn secondary full" onClick={() => setNewAdvancedOpen(!newAdvancedOpen)}>
                     {newAdvancedOpen ? "Hide advanced options" : "Show advanced options"}
@@ -246,87 +264,125 @@ export default function CategoriesPage() {
             )}
           </div>
 
-          <div className="card">
-            <h2 className="panel-title">Ordering</h2>
-            <p className="muted">Use Up and Down to reorder categories. RatioSplit stores clean background order numbers automatically.</p>
-            <button className="btn secondary full" onClick={normalizeCurrentOrder}>Normalize current order</button>
+          <div className="card section-card">
+            <button className="section-head" type="button" onClick={() => setOrderingOpen(!orderingOpen)}>
+              <div>
+                <div className="section-title">Ordering</div>
+                <div className="section-summary">Use Up and Down; the app stores the technical order automatically</div>
+              </div>
+              <span className="chevron">{orderingOpen ? "-" : "+"}</span>
+            </button>
+            {orderingOpen && (
+              <div className="section-body">
+                <p className="muted">Use Up and Down to reorder categories. RatioSplit stores clean background order numbers automatically.</p>
+                <button className="btn secondary full" onClick={normalizeCurrentOrder}>Normalize current order</button>
+              </div>
+            )}
           </div>
 
-          <div className="card">
-            <h2 className="panel-title">Deletion rules</h2>
-            <p className="muted">Use Hide for categories you no longer want to use. Permanent Delete appears only for hidden categories.</p>
-            <p className="muted">A hidden category can be permanently deleted only if no active expense currently uses it. This protects expense history.</p>
+          <div className="card section-card">
+            <button className="section-head" type="button" onClick={() => setDeletionRulesOpen(!deletionRulesOpen)}>
+              <div>
+                <div className="section-title">Deletion rules</div>
+                <div className="section-summary">Hidden categories can be deleted only if they are not used by active expenses</div>
+              </div>
+              <span className="chevron">{deletionRulesOpen ? "-" : "+"}</span>
+            </button>
+            {deletionRulesOpen && (
+              <div className="section-body">
+                <p className="muted">Use Hide from new expenses for categories you no longer want to use.</p>
+                <p className="muted">Permanent Delete appears only for hidden categories.</p>
+                <p className="muted">A hidden category can be permanently deleted only if no active expense currently uses it. This protects expense history.</p>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="right-column">
-          <div className="card">
-            <div className="toolbar">
+          <div className="card section-card">
+            <button className="section-head" type="button" onClick={() => setCategoriesOpen(!categoriesOpen)}>
               <div>
-                <h2 className="panel-title">Categories</h2>
-                <div className="muted">{visible.length} shown of {categories.length}</div>
+                <div className="section-title">Categories</div>
+                <div className="section-summary">{visible.length} shown of {categories.length}</div>
               </div>
-              <label><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show hidden</label>
-            </div>
+              <span className="chevron">{categoriesOpen ? "-" : "+"}</span>
+            </button>
 
-            <div className="expense-list">
-              {visible.map((category, index) => {
-                const value = editing[category.id] ?? category;
-                const isOpen = Boolean(openIds[category.id]);
-                const advancedOpen = Boolean(advancedIds[category.id]);
-                return (
-                  <div className="expense-item" key={category.id} style={{ borderLeftColor: value.color ?? "#64748B", cursor: "default" }}>
-                    <div className="expense-item-header">
-                      <button type="button" onClick={() => toggleOpen(category.id)} style={{ border: 0, background: "transparent", textAlign: "left", padding: 0, flex: 1, cursor: "pointer" }}>
-                        <div className="expense-title">{category.name}</div>
-                        <div className="expense-meta">{category.isActive ? "Active" : "Hidden"}</div>
-                      </button>
-                      <div className="action-row">
-                        <button className="btn secondary small" disabled={index === 0} onClick={() => moveCategory(category.id, "up")}>Up</button>
-                        <button className="btn secondary small" disabled={index === visible.length - 1} onClick={() => moveCategory(category.id, "down")}>Down</button>
-                        <button className="btn secondary small" onClick={() => toggleOpen(category.id)}>{isOpen ? "Close" : "Edit"}</button>
-                      </div>
-                    </div>
+            {categoriesOpen && (
+              <div className="section-body">
+                <div className="toolbar">
+                  <div className="muted">Available categories can be selected for new expenses. Hidden categories stay on old expenses.</div>
+                  <label><input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show hidden</label>
+                </div>
 
-                    {isOpen && (
-                      <div className="form">
-                        <div className="field">
-                          <label>Name</label>
-                          <input value={value.name} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, name: e.target.value } })} />
+                <div className="expense-list">
+                  {visible.map((category, index) => {
+                    const value = editing[category.id] ?? category;
+                    const isOpen = Boolean(openIds[category.id]);
+                    const advancedOpen = Boolean(advancedIds[category.id]);
+
+                    return (
+                      <div className="expense-item" key={category.id} style={{ borderLeftColor: value.color ?? "#64748B", cursor: "default" }}>
+                        <div className="expense-item-header">
+                          <button type="button" onClick={() => toggleOpen(category.id)} style={{ border: 0, background: "transparent", textAlign: "left", padding: 0, flex: 1, cursor: "pointer" }}>
+                            <div className="expense-title">{category.name}</div>
+                            <div className="expense-meta">{category.isActive ? "Available" : "Hidden from new expenses"}</div>
+                          </button>
+                          <div className="action-row">
+                            <button className="btn secondary small" disabled={index === 0} onClick={() => moveCategory(category.id, "up")}>Up</button>
+                            <button className="btn secondary small" disabled={index === visible.length - 1} onClick={() => moveCategory(category.id, "down")}>Down</button>
+                            <button className="btn secondary small" onClick={() => toggleOpen(category.id)}>{isOpen ? "Close" : "Edit"}</button>
+                          </div>
                         </div>
 
-                        <label><input type="checkbox" checked={value.isActive} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, isActive: e.target.checked } })} /> Active</label>
-
-                        <button type="button" className="btn secondary full" onClick={() => setAdvancedIds({ ...advancedIds, [category.id]: !advancedOpen })}>
-                          {advancedOpen ? "Hide advanced options" : "Show advanced options"}
-                        </button>
-
-                        {advancedOpen && (
-                          <div className="row">
+                        {isOpen && (
+                          <div className="form">
                             <div className="field">
-                              <label>Color</label>
-                              <input type="color" value={value.color ?? "#64748B"} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, color: e.target.value } })} />
+                              <label>Name</label>
+                              <input value={value.name} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, name: e.target.value } })} />
                             </div>
-                            <div className="field">
-                              <label>Icon name</label>
-                              <input value={value.icon ?? ""} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, icon: e.target.value } })} />
+
+                            <label><input type="checkbox" checked={value.isActive} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, isActive: e.target.checked } })} /> Available for new expenses</label>
+
+                            <button type="button" className="btn secondary full" onClick={() => setAdvancedIds({ ...advancedIds, [category.id]: !advancedOpen })}>
+                              {advancedOpen ? "Hide advanced options" : "Show advanced options"}
+                            </button>
+
+                            {advancedOpen && (
+                              <div className="row">
+                                <div className="field">
+                                  <label>Color</label>
+                                  <input type="color" value={value.color ?? "#64748B"} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, color: e.target.value } })} />
+                                </div>
+                                <div className="field">
+                                  <label>Icon name</label>
+                                  <input value={value.icon ?? ""} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, icon: e.target.value } })} />
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="edit-actions">
+                              <button className="btn full" onClick={() => saveCategory(category.id)}>Save</button>
+                              <button className="btn danger full" onClick={() => hideCategory(category.id)}>Hide from new expenses</button>
                             </div>
+
+                            {!category.isActive && (
+                              <div className="settlement-box" style={{ marginTop: 12 }}>
+                                <div className="hero-label">Danger zone</div>
+                                <p className="muted">Permanent deletion is only allowed if no active expense uses this hidden category.</p>
+                                <button className="btn danger full" onClick={() => deleteCategory(category.id)}>Delete permanently</button>
+                              </div>
+                            )}
                           </div>
                         )}
-
-                        <div className="edit-actions">
-                          <button className="btn full" onClick={() => saveCategory(category.id)}>Save</button>
-                          <button className="btn danger full" onClick={() => hideCategory(category.id)}>Hide</button>
-                          {!category.isActive && <button className="btn danger full" onClick={() => deleteCategory(category.id)}>Delete permanently</button>}
-                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
 
-              {!visible.length && <div className="muted">No categories to show.</div>}
-            </div>
+                  {!visible.length && <div className="muted">No categories to show.</div>}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
