@@ -168,3 +168,21 @@ input[type="checkbox"] {
   .settings-actions { grid-template-columns: 1fr; }
 }
 
+
+
+/* Patch 27 - header desktop and settings date polish */
+@media (min-width: 721px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr) minmax(720px, 980px) !important;
+  }
+  .month-controls {
+    grid-template-columns: 44px minmax(170px, 1fr) 44px auto auto auto !important;
+    align-items: end !important;
+  }
+  .month-controls .lock-btn,
+  .month-controls .review-btn,
+  .month-controls .settings-btn {
+    white-space: nowrap !important;
+  }
+}
+
