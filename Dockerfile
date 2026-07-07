@@ -21,9 +21,11 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/scripts ./scripts
 RUN mkdir -p /data
 EXPOSE 3000
 CMD ["sh", "-c", "npx prisma db push && npx prisma generate && npm run prisma:seed && (node scripts/auto-backup.mjs &) && npm start"]
+
 
 
 
