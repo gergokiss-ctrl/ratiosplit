@@ -1,4 +1,5 @@
-﻿"use client";
+
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -11,7 +12,11 @@ type Category = {
   isActive: boolean;
 };
 
-const defaultDraft = { name: "", color: "#64748B", icon: "circle-dot", isActive: true };`n`nfunction orderedCategories(categories: Category[]) {`n  return [...categories].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));`n}
+const defaultDraft = { name: "", color: "#64748B", icon: "circle-dot", isActive: true };
+
+function orderedCategories(categories: Category[]) {
+  return [...categories].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+}
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -28,12 +33,17 @@ export default function CategoriesPage() {
     const res = await fetch("/api/categories");
     const data = await res.json();
     setCategories(data);
+
     const nextEditing: Record<string, Category> = {};
-    data.forEach((category: Category) => { nextEditing[category.id] = category; });
+    data.forEach((category: Category) => {
+      nextEditing[category.id] = category;
+    });
     setEditing(nextEditing);
   }
 
-  useEffect(() => { loadCategories(); }, []);
+  useEffect(() => {
+    loadCategories();
+  }, []);
 
   const visible = useMemo(() => {
     return orderedCategories(categories.filter((category) => showInactive || category.isActive));
@@ -46,16 +56,19 @@ export default function CategoriesPage() {
   async function addCategory(ev: React.FormEvent) {
     ev.preventDefault();
     setMessage("");
+
     const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(draft),
     });
     const data = await res.json();
+
     if (!res.ok) {
       setMessage(data.error || "Could not create category.");
       return;
     }
+
     setDraft(defaultDraft);
     setNewOpen(false);
     setNewAdvancedOpen(false);
@@ -70,22 +83,27 @@ export default function CategoriesPage() {
       body: JSON.stringify(editing[id]),
     });
     const data = await res.json();
+
     if (!res.ok) {
       setMessage(data.error || "Could not save category.");
       return;
     }
+
     setMessage("Category saved.");
     await loadCategories();
   }
 
   async function hideCategory(id: string) {
     if (!confirm("Hide this category? Existing expenses will keep it, but it will no longer be active.")) return;
+
     const res = await fetch(`/api/categories/${id}`, { method: "DELETE" });
     const data = await res.json().catch(() => ({}));
+
     if (!res.ok) {
       setMessage(data.error || "Could not hide category.");
       return;
     }
+
     setMessage("Category hidden.");
     await loadCategories();
   }
@@ -101,9 +119,11 @@ export default function CategoriesPage() {
   }
 
   async function normalizeOrder(nextVisibleOrder: Category[]) {
-    await Promise.all(nextVisibleOrder.map((category, index) => {
-      return patchCategory(category.id, { sortOrder: (index + 1) * 10 });
-    }));
+    await Promise.all(
+      nextVisibleOrder.map((category, index) => {
+        return patchCategory(category.id, { sortOrder: (index + 1) * 10 });
+      })
+    );
   }
 
   async function moveCategory(id: string, direction: "up" | "down") {
@@ -165,6 +185,7 @@ export default function CategoriesPage() {
               </div>
               <span className="chevron">{newOpen ? "-" : "+"}</span>
             </button>
+
             {newOpen && (
               <div className="section-body">
                 <form className="form" onSubmit={addCategory}>
@@ -172,10 +193,13 @@ export default function CategoriesPage() {
                     <label>Name</label>
                     <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="e.g. Utilities" />
                   </div>
+
                   <label><input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} /> Active</label>
+
                   <button type="button" className="btn secondary full" onClick={() => setNewAdvancedOpen(!newAdvancedOpen)}>
                     {newAdvancedOpen ? "Hide advanced options" : "Show advanced options"}
                   </button>
+
                   {newAdvancedOpen && (
                     <div className="row">
                       <div className="field">
@@ -188,10 +212,17 @@ export default function CategoriesPage() {
                       </div>
                     </div>
                   )}
+
                   <button className="btn full">Add category</button>
                 </form>
               </div>
             )}
+          </div>
+
+          <div className="card">
+            <h2 className="panel-title">Ordering</h2>
+            <p className="muted">Use Up and Down to reorder categories. RatioSplit stores clean background order numbers automatically.</p>
+            <button className="btn secondary full" onClick={normalizeCurrentOrder}>Normalize current order</button>
           </div>
 
           <div className="card">
@@ -237,10 +268,13 @@ export default function CategoriesPage() {
                           <label>Name</label>
                           <input value={value.name} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, name: e.target.value } })} />
                         </div>
+
                         <label><input type="checkbox" checked={value.isActive} onChange={(e) => setEditing({ ...editing, [category.id]: { ...value, isActive: e.target.checked } })} /> Active</label>
+
                         <button type="button" className="btn secondary full" onClick={() => setAdvancedIds({ ...advancedIds, [category.id]: !advancedOpen })}>
                           {advancedOpen ? "Hide advanced options" : "Show advanced options"}
                         </button>
+
                         {advancedOpen && (
                           <div className="row">
                             <div className="field">
@@ -253,6 +287,7 @@ export default function CategoriesPage() {
                             </div>
                           </div>
                         )}
+
                         <div className="edit-actions">
                           <button className="btn full" onClick={() => saveCategory(category.id)}>Save</button>
                           <button className="btn danger full" onClick={() => hideCategory(category.id)}>Hide</button>
@@ -262,6 +297,7 @@ export default function CategoriesPage() {
                   </div>
                 );
               })}
+
               {!visible.length && <div className="muted">No categories to show.</div>}
             </div>
           </div>
@@ -270,4 +306,3 @@ export default function CategoriesPage() {
     </main>
   );
 }
-
