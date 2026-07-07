@@ -16,10 +16,17 @@ export async function POST(req: Request) {
 
     const color = String(body.color ?? "#64748B").trim() || "#64748B";
     const icon = String(body.icon ?? "circle-dot").trim() || "circle-dot";
-    const count = await prisma.category.count();
+    const last = await prisma.category.findFirst({ orderBy: { sortOrder: "desc" } });
+    const nextSortOrder = (last?.sortOrder ?? 0) + 10;
 
     const category = await prisma.category.create({
-      data: { name, color, icon, sortOrder: count + 1, isActive: body.isActive ?? true },
+      data: {
+        name,
+        color,
+        icon,
+        sortOrder: nextSortOrder,
+        isActive: body.isActive ?? true,
+      },
     });
 
     return NextResponse.json(category, { status: 201 });

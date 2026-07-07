@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -11,7 +11,7 @@ type Category = {
   isActive: boolean;
 };
 
-const defaultDraft = { name: "", color: "#64748B", icon: "circle-dot", isActive: true };
+const defaultDraft = { name: "", color: "#64748B", icon: "circle-dot", isActive: true };`n`nfunction orderedCategories(categories: Category[]) {`n  return [...categories].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));`n}
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -36,7 +36,7 @@ export default function CategoriesPage() {
   useEffect(() => { loadCategories(); }, []);
 
   const visible = useMemo(() => {
-    return categories.filter((category) => showInactive || category.isActive);
+    return orderedCategories(categories.filter((category) => showInactive || category.isActive));
   }, [categories, showInactive]);
 
   function toggleOpen(id: string) {
@@ -100,25 +100,40 @@ export default function CategoriesPage() {
     if (!res.ok) throw new Error(response.error || "Could not update category.");
   }
 
+  async function normalizeOrder(nextVisibleOrder: Category[]) {
+    await Promise.all(nextVisibleOrder.map((category, index) => {
+      return patchCategory(category.id, { sortOrder: (index + 1) * 10 });
+    }));
+  }
+
   async function moveCategory(id: string, direction: "up" | "down") {
     setMessage("");
-    const ordered = [...visible].sort((a, b) => (a.sortOrder - b.sortOrder) || a.name.localeCompare(b.name));
+    const ordered = [...visible];
     const index = ordered.findIndex((category) => category.id === id);
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return;
 
-    const current = ordered[index];
-    const target = ordered[targetIndex];
+    const nextOrder = [...ordered];
+    const [removed] = nextOrder.splice(index, 1);
+    nextOrder.splice(targetIndex, 0, removed);
 
     try {
-      await Promise.all([
-        patchCategory(current.id, { sortOrder: target.sortOrder }),
-        patchCategory(target.id, { sortOrder: current.sortOrder }),
-      ]);
+      await normalizeOrder(nextOrder);
       setMessage("Category order updated.");
       await loadCategories();
     } catch (error: any) {
       setMessage(error.message || "Could not reorder categories.");
+    }
+  }
+
+  async function normalizeCurrentOrder() {
+    setMessage("");
+    try {
+      await normalizeOrder(visible);
+      setMessage("Category order normalized.");
+      await loadCategories();
+    } catch (error: any) {
+      setMessage(error.message || "Could not normalize category order.");
     }
   }
 
@@ -207,7 +222,7 @@ export default function CategoriesPage() {
                     <div className="expense-item-header">
                       <button type="button" onClick={() => toggleOpen(category.id)} style={{ border: 0, background: "transparent", textAlign: "left", padding: 0, flex: 1, cursor: "pointer" }}>
                         <div className="expense-title">{category.name}</div>
-                        <div className="expense-meta">{category.isActive ? "Active" : "Hidden"} - sort order {category.sortOrder}</div>
+                        <div className="expense-meta">{category.isActive ? "Active" : "Hidden"}</div>
                       </button>
                       <div className="action-row">
                         <button className="btn secondary small" disabled={index === 0} onClick={() => moveCategory(category.id, "up")}>Up</button>
@@ -255,3 +270,4 @@ export default function CategoriesPage() {
     </main>
   );
 }
+
