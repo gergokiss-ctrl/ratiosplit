@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -28,6 +27,19 @@ export default function CategoriesPage() {
   const [newOpen, setNewOpen] = useState(false);
   const [advancedIds, setAdvancedIds] = useState<Record<string, boolean>>({});
   const [newAdvancedOpen, setNewAdvancedOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("rs-category-new-open");
+      if (saved !== null) setNewOpen(saved === "1");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("rs-category-new-open", newOpen ? "1" : "0");
+    } catch {}
+  }, [newOpen]);
 
   async function loadCategories() {
     const res = await fetch("/api/categories");
@@ -105,6 +117,21 @@ export default function CategoriesPage() {
     }
 
     setMessage("Category hidden.");
+    await loadCategories();
+  }
+
+  async function deleteCategory(id: string) {
+    if (!confirm("Permanently delete this hidden category? This is only allowed if no active expense uses it.")) return;
+
+    const res = await fetch(`/api/categories/${id}?hard=1`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      setMessage(data.error || "Could not delete category.");
+      return;
+    }
+
+    setMessage("Category deleted.");
     await loadCategories();
   }
 
@@ -226,10 +253,9 @@ export default function CategoriesPage() {
           </div>
 
           <div className="card">
-            <h2 className="panel-title">Notes</h2>
-            <p className="muted">The category color is used as a visual accent on category cards. It can also be reused later in charts or summaries.</p>
-            <p className="muted">The icon name is stored for future UI polish. The current app mainly uses the category name and color.</p>
-            <p className="muted">Hiding a category does not delete old expense history. It only removes the category from active category lists.</p>
+            <h2 className="panel-title">Deletion rules</h2>
+            <p className="muted">Use Hide for categories you no longer want to use. Permanent Delete appears only for hidden categories.</p>
+            <p className="muted">A hidden category can be permanently deleted only if no active expense currently uses it. This protects expense history.</p>
           </div>
         </div>
 
@@ -291,6 +317,7 @@ export default function CategoriesPage() {
                         <div className="edit-actions">
                           <button className="btn full" onClick={() => saveCategory(category.id)}>Save</button>
                           <button className="btn danger full" onClick={() => hideCategory(category.id)}>Hide</button>
+                          {!category.isActive && <button className="btn danger full" onClick={() => deleteCategory(category.id)}>Delete permanently</button>}
                         </div>
                       </div>
                     )}
