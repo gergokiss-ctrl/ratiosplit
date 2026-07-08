@@ -12,7 +12,11 @@ const backupDir = () => process.env.AUTO_DB_BACKUP_DIR || "/backups";
 const statusFile = () => process.env.AUTO_DB_BACKUP_STATUS_FILE || path.join(backupDir(), "status.json");
 
 function huDate(date = new Date()) {
-  return new Intl.DateTimeFormat("hu-HU", { dateStyle: "short", timeStyle: "medium", timeZone: "Europe/Budapest" }).format(date);
+  return new Intl.DateTimeFormat("hu-HU", {
+    dateStyle: "short",
+    timeStyle: "medium",
+    timeZone: "Europe/Budapest",
+  }).format(date);
 }
 
 function budapestParts(date = new Date()) {
@@ -42,13 +46,43 @@ function parseBackupTime(value) {
   return { hour, minute };
 }
 
-function millisecondsUntilBudapestTime(time) {
-  const now = budapestParts();
-  const nowMinutes = Number(now.hour) * 60 + Number(now.minute);
-  const targetMinutes = time.hour * 60 + time.minute;
-  let diffMinutes = targetMinutes - nowMinutes;
-  if (diffMinutes <= 0) diffMinutes += 24 * 60;
-  return diffMinutes * 60 * 1000;
+function timezoneOffsetMsForBudapest(date) {
+  const parts = budapestParts(date);
+  const asUtc = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  return asUtc - date.getTime();
+}
+
+function nextBudapestDateForTime(time) {
+  const now = new Date();
+  const nowParts = budapestParts(now);
+
+  // Build a UTC timestamp for today's Budapest local target time, then subtract the
+  // Budapest offset valid near that timestamp. Re-evaluate once for DST boundaries.
+  let candidateUtc = Date.UTC(
+    Number(nowParts.year),
+    Number(nowParts.month) - 1,
+    Number(nowParts.day),
+    time.hour,
+    time.minute,
+    0
+  );
+  let candidate = new Date(candidateUtc - timezoneOffsetMsForBudapest(new Date(candidateUtc)));
+  candidate = new Date(candidateUtc - timezoneOffsetMsForBudapest(candidate));
+
+  if (candidate <= now) {
+    candidateUtc += 24 * 60 * 60 * 1000;
+    candidate = new Date(candidateUtc - timezoneOffsetMsForBudapest(new Date(candidateUtc)));
+    candidate = new Date(candidateUtc - timezoneOffsetMsForBudapest(candidate));
+  }
+
+  return candidate;
 }
 
 function config() {
@@ -84,6 +118,7 @@ async function writeStatus(patch) {
 async function pruneBackups(dir, retentionDays, maxFiles) {
   const entries = await readdir(dir).catch(() => []);
   const files = [];
+
   for (const entry of entries) {
     if (!entry.startsWith("ratiosplit-auto-") || !entry.endsWith(".db")) continue;
     const fullPath = path.join(dir, entry);
@@ -140,9 +175,22 @@ async function runBackup(reason) {
 function scheduleNext() {
   const current = config();
   if (!current.enabled) return;
+
   const time = parseBackupTime(process.env.AUTO_DB_BACKUP_TIME || process.env.AUTO_DB_BACKUP_TIME_HHMM);
-  const delayMs = time ? millisecondsUntilBudapestTime(time) : current.intervalHours * 60 * 60 * 1000;
-  const next = new Date(Date.now() + delayMs);
+  let next;
+  let delayMs;
+
+  if (time) {
+    next = nextBudapestDateForTime(time);
+    delayMs = next.getTime() - Date.now();
+  } else {
+    delayMs = current.intervalHours * 60 * 60 * 1000;
+    next = new Date(Date.now() + delayMs);
+  }
+
+  // Avoid negative/zero timers on edge cases.
+  if (delayMs < 1000) delayMs = 1000;
+
   writeStatus({ nextRunAt: next.toISOString(), nextRunAtBudapest: huDate(next) }).catch(() => {});
 
   setTimeout(async () => {
@@ -165,9 +213,12 @@ async function main() {
   if (current.timeHHMM) console.log(`[auto-backup] Daily time: ${current.timeHHMM} Europe/Budapest`);
   else console.log(`[auto-backup] Interval: ${current.intervalHours}h`);
 
-  setTimeout(() => {
-    runBackup("startup").catch((error) => console.error("[auto-backup] Startup backup failed:", error));
-  }, numberEnv("AUTO_DB_BACKUP_STARTUP_DELAY_SECONDS", 30) * 1000);
+  const startupDelay = numberEnv("AUTO_DB_BACKUP_STARTUP_DELAY_SECONDS", 0);
+  if (startupDelay > 0) {
+    setTimeout(() => {
+      runBackup("startup").catch((error) => console.error("[auto-backup] Startup backup failed:", error));
+    }, startupDelay * 1000);
+  }
 
   scheduleNext();
 }
