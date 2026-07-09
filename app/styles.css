@@ -381,3 +381,26 @@ input[type="checkbox"] {
   height: 9px;
 }
 
+
+
+/* Patch 49 fixed - Income source UX polish */
+.source-help {
+  border: 1px solid #dbe7f3;
+  background: #f8fbff;
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 12px;
+  margin: 10px 0 14px;
+  line-height: 1.45;
+}
+.source-help strong { color: var(--navy-900); }
+.source-help ul { margin: 8px 0 0 18px; padding: 0; }
+.source-help li { margin: 4px 0; }
+.income-source-row.add {
+  background: #f8fbff;
+  border-radius: 10px;
+  padding: 10px;
+  border: 1px dashed #bdd5ed;
+}
+.income-source-row.add .btn { min-height: 42px; }
+
