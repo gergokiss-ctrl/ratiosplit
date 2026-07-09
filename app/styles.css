@@ -347,3 +347,37 @@ input[type="checkbox"] {
   margin: 0;
 }
 
+
+
+/* Patch 48 - Category colors in review and expenses */
+.category-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.category-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 0 0 3px rgba(15,23,42,.08);
+}
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #dbe7f3;
+  background: #f8fbff;
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 100%;
+}
+.category-pill .category-dot {
+  width: 9px;
+  height: 9px;
+}
+
