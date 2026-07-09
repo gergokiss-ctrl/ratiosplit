@@ -304,3 +304,46 @@ input[type="checkbox"] {
   }
 }
 
+
+
+/* Patch 47 - Compact help notes */
+.help-chip {
+  border: 1px solid var(--blue-700);
+  background: #fff;
+  color: var(--blue-700);
+  border-radius: 999px;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 850;
+  cursor: pointer;
+  line-height: 1;
+}
+.help-chip:hover {
+  background: #eef6ff;
+}
+.help-note {
+  border: 1px solid #dbe7f3;
+  background: #f8fbff;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-top: 10px;
+  line-height: 1.45;
+}
+.help-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+.help-line .muted {
+  margin: 0;
+}
+
