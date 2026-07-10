@@ -1,4 +1,4 @@
-﻿import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,59 +101,25 @@ export async function GET(_req: Request, ctx: { params: Promise<{ monthKey: stri
   const direction = balance1 > 0 ? "PERSON_2_TO_PERSON_1" : balance2 > 0 ? "PERSON_1_TO_PERSON_2" : "NONE";
   const settlementAmount = Math.abs(balance1);
 
-  const categoriesById = new Map<string, { name: string; amountHufMinor: number }>();
-  for (const expense of expenses) {
-    if (expense.splitType === "EXCLUDED") continue;
-    const key = expense.category?.id ?? "NO_CATEGORY";
-    const name = expense.category?.name ?? "No category";
-    const existing = categoriesById.get(key);
-    if (existing) existing.amountHufMinor += expense.amountHufMinor;
-    else categoriesById.set(key, { name, amountHufMinor: expense.amountHufMinor });
-  }
-  const categorySummary = [...categoriesById.values()].sort((a, b) => b.amountHufMinor - a.amountHufMinor);
-
   const rows: string[] = [];
   rows.push(csvRow(["RatioSplit export", monthKey]));
   rows.push(csvRow(["Generated", new Intl.DateTimeFormat("hu-HU", { dateStyle: "short", timeStyle: "medium", timeZone: "Europe/Budapest" }).format(new Date())]));
   rows.push("");
-  rows.push(csvRow(["Month summary"]));
-  rows.push(csvRow(["Person", "Paid HUF", "Owed HUF", "Balance HUF", "Income ratio"]));
+  rows.push(csvRow(["Summary"]));
+  rows.push(csvRow(["Person", "Paid HUF", "Owed HUF", "Balance HUF", "Ratio"]));
   rows.push(csvRow([people[0].name, (paid[people[0].id] / 100).toFixed(2), (owed[people[0].id] / 100).toFixed(2), (balance1 / 100).toFixed(2), `${(person1RatioBps / 100).toFixed(1)}%`]));
   rows.push(csvRow([people[1].name, (paid[people[1].id] / 100).toFixed(2), (owed[people[1].id] / 100).toFixed(2), (balance2 / 100).toFixed(2), `${(person2RatioBps / 100).toFixed(1)}%`]));
-  rows.push(csvRow(["Tracked expenses HUF", (trackedTotal / 100).toFixed(2)]));
-  rows.push(csvRow(["Excluded expenses HUF", (excludedTotal / 100).toFixed(2)]));
-  rows.push(csvRow(["Final settlement", settlementText(people, settlementAmount, direction)]));
+  rows.push(csvRow(["Tracked expenses", (trackedTotal / 100).toFixed(2)]));
+  rows.push(csvRow(["Excluded expenses", (excludedTotal / 100).toFixed(2)]));
+  rows.push(csvRow(["Settlement", settlementText(people, settlementAmount, direction)]));
   rows.push("");
-  rows.push(csvRow(["Expenses by category"]));
-  rows.push(csvRow(["Category", "Amount HUF", "Share of tracked expenses"]));
-  for (const category of categorySummary) {
-    const share = trackedTotal > 0 ? `${((category.amountHufMinor / trackedTotal) * 100).toFixed(1)}%` : "0.0%";
-    rows.push(csvRow([category.name, (category.amountHufMinor / 100).toFixed(2), share]));
-  }
-  if (!categorySummary.length) rows.push(csvRow(["No tracked expenses", "0.00", "0.0%"]));
-
-  rows.push("");
-  rows.push(csvRow(["Income details"]));
+  rows.push(csvRow(["Incomes"]));
   rows.push(csvRow(["Person", "Income source", "Amount HUF", "Included", "One-time"]));
   for (const income of monthlyIncomes) rows.push(csvRow([income.person.name, income.incomeSource.name, income.amountHufMinor == null ? "" : (income.amountHufMinor / 100).toFixed(2), income.isIncluded ? "Yes" : "No", income.incomeSource.isOneTime ? "Yes" : "No"]));
   rows.push("");
-  rows.push(csvRow(["Expense details"]));
-  rows.push(csvRow(["Date", "Description", "Original amount", "Currency", "HUF value", "Paid by", "Split", "Category", people[0].name + " share HUF", people[1].name + " share HUF"]));
-  for (const expense of expenses) {
-    const shares = expenseShares(expense, people, ratios);
-    rows.push(csvRow([
-      formatDate(expense.date),
-      expense.description,
-      (expense.amountOriginalMinor / 100).toFixed(2),
-      expense.currency,
-      (expense.amountHufMinor / 100).toFixed(2),
-      expense.paidByPerson.name,
-      expense.splitType,
-      expense.category?.name ?? "",
-      ((shares[people[0].id] ?? 0) / 100).toFixed(2),
-      ((shares[people[1].id] ?? 0) / 100).toFixed(2),
-    ]));
-  }
+  rows.push(csvRow(["Expenses"]));
+  rows.push(csvRow(["Date", "Description", "Original amount", "Currency", "HUF value", "Paid by", "Split", "Category"]));
+  for (const expense of expenses) rows.push(csvRow([formatDate(expense.date), expense.description, (expense.amountOriginalMinor / 100).toFixed(2), expense.currency, (expense.amountHufMinor / 100).toFixed(2), expense.paidByPerson.name, expense.splitType, expense.category?.name ?? ""]));
 
   const csv = "\ufeff" + rows.join("\r\n");
   return new Response(csv, {
@@ -164,4 +130,3 @@ export async function GET(_req: Request, ctx: { params: Promise<{ monthKey: stri
     },
   });
 }
-
