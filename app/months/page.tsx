@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -49,7 +49,7 @@ function monthKeyFromDate(value: unknown) {
 
 function explicitMonthKey(value: AnyRecord | undefined) {
   if (!value) return null;
-  const direct = value.monthKey ?? value.key ?? value.month;
+  const direct = value.monthKey ?? value.yearMonth ?? value.key ?? value.month;
   if (typeof direct === "string" && /^\d{4}-\d{2}$/.test(direct)) return direct;
   if (typeof value.year === "number" && typeof value.monthNumber === "number") {
     return `${value.year}-${String(value.monthNumber).padStart(2, "0")}`;
@@ -89,7 +89,18 @@ export default function MonthsOverviewPage() {
     try {
       const response = await fetch("/api/backup/json", { cache: "no-store" });
       if (!response.ok) throw new Error("Could not load monthly data.");
-      setPayload(await response.json());
+      const raw = await response.json();
+      const source = raw?.data ?? raw?.backup?.data ?? raw?.backup ?? raw;
+      setPayload({
+        people: Array.isArray(source?.people) ? source.people : [],
+        months: Array.isArray(source?.months) ? source.months : [],
+        monthlyIncomes: Array.isArray(source?.monthlyIncomes)
+          ? source.monthlyIncomes
+          : Array.isArray(source?.incomes)
+            ? source.incomes
+            : [],
+        expenses: Array.isArray(source?.expenses) ? source.expenses : [],
+      });
     } catch (error: any) {
       setMessage(error?.message ?? "Could not load monthly data.");
     } finally {
@@ -246,3 +257,4 @@ export default function MonthsOverviewPage() {
     </main>
   );
 }
+
