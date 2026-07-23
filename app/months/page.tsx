@@ -1,18 +1,17 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
 type AnyRecord = Record<string, any>;
-
 type BackupPayload = {
   people?: AnyRecord[];
   months?: AnyRecord[];
   monthlyIncomes?: AnyRecord[];
   expenses?: AnyRecord[];
 };
-
 type MonthOverview = {
   key: string;
+  year: string;
   incomeTotal: number;
   personIncomes: { id: string; name: string; amount: number }[];
   trackedExpenses: number;
@@ -23,6 +22,8 @@ type MonthOverview = {
   locked: boolean;
   settled: boolean;
 };
+
+const STORAGE_KEY = "rs-months-card-open-v1";
 
 function money(minor: number) {
   return new Intl.NumberFormat("hu-HU", {
@@ -51,8 +52,9 @@ function explicitMonthKey(value: AnyRecord | undefined) {
   if (!value) return null;
   const direct = value.monthKey ?? value.yearMonth ?? value.key ?? value.month;
   if (typeof direct === "string" && /^\d{4}-\d{2}$/.test(direct)) return direct;
-  if (typeof value.year === "number" && typeof value.monthNumber === "number") {
-    return `${value.year}-${String(value.monthNumber).padStart(2, "0")}`;
+  const numericMonth = value.monthNumber ?? value.monthIndex ?? (typeof value.month === "number" ? value.month : null);
+  if (typeof value.year === "number" && typeof numericMonth === "number") {
+    return `${value.year}-${String(numericMonth).padStart(2, "0")}`;
   }
   return null;
 }
@@ -78,10 +80,34 @@ function monthStatus(month: AnyRecord | undefined) {
   };
 }
 
+function loadOpenState() {
+  if (typeof window === "undefined") return {} as Record<string, boolean>;
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEY);
+    return value ? JSON.parse(value) : {};
+  } catch {
+    return {};
+  }
+}
+
 export default function MonthsOverviewPage() {
   const [payload, setPayload] = useState<BackupPayload | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
+  const [stateLoaded, setStateLoaded] = useState(false);
+
+  useEffect(() => {
+    setOpenMonths(loadOpenState());
+    setStateLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (!stateLoaded) return;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(openMonths));
+    } catch {}
+  }, [openMonths, stateLoaded]);
 
   async function load() {
     setLoading(true);
@@ -108,13 +134,10 @@ export default function MonthsOverviewPage() {
     }
   }
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const overview = useMemo<MonthOverview[]>(() => {
     if (!payload) return [];
-
     const people = payload.people ?? [];
     const months = payload.months ?? [];
     const incomes = payload.monthlyIncomes ?? [];
@@ -137,124 +160,119 @@ export default function MonthsOverviewPage() {
       if (key) keys.add(key);
     }
 
-    return [...keys]
-      .sort((a, b) => b.localeCompare(a))
-      .map((key) => {
-        const month = months.find((item) => explicitMonthKey(item) === key);
-        const monthId = month?.id != null ? String(month.id) : null;
-        const monthIncomes = incomes.filter((income) => {
-          if (monthId && String(income.monthId ?? "") === monthId) return true;
-          return explicitMonthKey(income) === key;
-        });
-        const monthExpenses = expenses.filter((expense) => {
-          if (monthId && String(expense.monthId ?? "") === monthId) return true;
-          return explicitMonthKey(expense) === key || monthKeyFromDate(expense.date) === key;
-        });
-
-        const personIncomes = people.map((person) => {
-          const amount = monthIncomes
-            .filter((income) => String(income.personId ?? income.person?.id ?? "") === String(person.id))
-            .filter(isIncludedIncome)
-            .reduce((sum, income) => sum + minorAmount(income), 0);
-          return { id: String(person.id), name: String(person.name ?? "Person"), amount };
-        });
-        const incomeTotal = personIncomes.reduce((sum, person) => sum + person.amount, 0);
-        const trackedExpenses = monthExpenses
-          .filter((expense) => expense.splitType !== "EXCLUDED" && !expense.deletedAt)
-          .reduce((sum, expense) => sum + minorAmount(expense), 0);
-        const excludedExpenses = monthExpenses
-          .filter((expense) => expense.splitType === "EXCLUDED" && !expense.deletedAt)
-          .reduce((sum, expense) => sum + minorAmount(expense), 0);
-        const ratioText = personIncomes.length
-          ? personIncomes
-              .map((person) => `${person.name} ${incomeTotal > 0 ? ((person.amount / incomeTotal) * 100).toFixed(1) : "0.0"}%`)
-              .join(" / ")
-          : "No income data";
-        const status = monthStatus(month);
-
-        return {
-          key,
-          incomeTotal,
-          personIncomes,
-          trackedExpenses,
-          excludedExpenses,
-          expenseCount: monthExpenses.filter((expense) => !expense.deletedAt).length,
-          ratioText,
-          ...status,
-        };
+    return [...keys].sort((a, b) => b.localeCompare(a)).map((key) => {
+      const month = months.find((item) => explicitMonthKey(item) === key);
+      const monthId = month?.id != null ? String(month.id) : null;
+      const monthIncomes = incomes.filter((income) =>
+        (monthId && String(income.monthId ?? "") === monthId) || explicitMonthKey(income) === key
+      );
+      const monthExpenses = expenses.filter((expense) =>
+        (monthId && String(expense.monthId ?? "") === monthId) ||
+        explicitMonthKey(expense) === key || monthKeyFromDate(expense.date) === key
+      );
+      const activeExpenses = monthExpenses.filter((expense) => !expense.deletedAt);
+      const personIncomes = people.map((person) => {
+        const amount = monthIncomes
+          .filter((income) => String(income.personId ?? income.person?.id ?? "") === String(person.id))
+          .filter(isIncludedIncome)
+          .reduce((sum, income) => sum + minorAmount(income), 0);
+        return { id: String(person.id), name: String(person.name ?? "Person"), amount };
       });
+      const incomeTotal = personIncomes.reduce((sum, person) => sum + person.amount, 0);
+      const trackedExpenses = activeExpenses
+        .filter((expense) => expense.splitType !== "EXCLUDED")
+        .reduce((sum, expense) => sum + minorAmount(expense), 0);
+      const excludedExpenses = activeExpenses
+        .filter((expense) => expense.splitType === "EXCLUDED")
+        .reduce((sum, expense) => sum + minorAmount(expense), 0);
+      const ratioText = personIncomes.length
+        ? personIncomes.map((person) => `${person.name} ${incomeTotal > 0 ? ((person.amount / incomeTotal) * 100).toFixed(1) : "0.0"}%`).join(" / ")
+        : "No income data";
+      const status = monthStatus(month);
+      return {
+        key,
+        year: key.slice(0, 4),
+        incomeTotal,
+        personIncomes,
+        trackedExpenses,
+        excludedExpenses,
+        expenseCount: activeExpenses.length,
+        ratioText,
+        ...status,
+      };
+    }).filter((month) => month.expenseCount > 0 || month.settled || month.locked);
   }, [payload]);
+
+  const years = useMemo(() => {
+    const grouped = new Map<string, MonthOverview[]>();
+    for (const month of overview) {
+      const list = grouped.get(month.year) ?? [];
+      list.push(month);
+      grouped.set(month.year, list);
+    }
+    return [...grouped.entries()].sort(([a], [b]) => b.localeCompare(a));
+  }, [overview]);
+
+  function isOpen(key: string) {
+    return openMonths[key] ?? true;
+  }
+  function toggleMonth(key: string) {
+    setOpenMonths((current) => ({ ...current, [key]: !isOpen(key) }));
+  }
+  function setMany(keys: string[], open: boolean) {
+    setOpenMonths((current) => {
+      const next = { ...current };
+      keys.forEach((key) => { next[key] = open; });
+      return next;
+    });
+  }
 
   return (
     <main className="shell">
       <header className="header">
-        <div className="logo">
-          <div className="logo-mark" />
-          <div>
-            <h1 className="h-title">Monthly overview</h1>
-            <p className="h-sub">Historical income, expense and month status summary</p>
-          </div>
-        </div>
-        <div className="action-row">
-          <a className="btn secondary" href="/">Back to RatioSplit</a>
-          <button className="btn secondary" onClick={load}>Refresh</button>
-        </div>
+        <div className="logo"><div className="logo-mark"/><div><h1 className="h-title">Monthly overview</h1><p className="h-sub">Historical income, expense and month status summary</p></div></div>
+        <div className="action-row"><a className="btn secondary" href="/">Back to RatioSplit</a><button className="btn secondary" onClick={load}>Refresh</button></div>
       </header>
-
       {message && <div className="notice" style={{ marginTop: 14 }}>{message}</div>}
-
       <section className="card" style={{ marginTop: 16 }}>
         <div className="toolbar">
-          <div>
-            <h2 className="panel-title">Months</h2>
-            <div className="muted">{loading ? "Loading..." : `${overview.length} month(s) found`}</div>
-          </div>
-          <a className="btn secondary" href="/backup">Backup dashboard</a>
+          <div><h2 className="panel-title">Years and months</h2><div className="muted">{loading ? "Loading..." : `${overview.length} month(s) in ${years.length} year(s)`}</div></div>
+          <div className="action-row"><button className="btn secondary" onClick={()=>setMany(overview.map(m=>m.key),true)}>Expand all</button><button className="btn secondary" onClick={()=>setMany(overview.map(m=>m.key),false)}>Collapse all</button></div>
         </div>
 
         <div className="expense-list">
-          {overview.map((month) => (
-            <article className="expense-item" key={month.key} style={{ cursor: "default" }}>
-              <div className="expense-item-header">
-                <div>
-                  <div className="expense-title">{monthLabel(month.key)}</div>
-                  <div className="expense-meta">{month.key} · {month.status}</div>
-                </div>
-                <div className="action-row">
-                  <a className="btn secondary small" href={`/api/export/${month.key}`}>Export CSV</a>
-                </div>
+          {years.map(([year, months]) => (
+            <section className="card" key={year} style={{ margin: 0, boxShadow: "none" }}>
+              <div className="toolbar">
+                <div><h2 className="panel-title">{year}</h2><div className="muted">{months.length} month(s)</div></div>
+                <div className="action-row"><button className="btn secondary small" onClick={()=>setMany(months.map(m=>m.key),true)}>Expand months</button><button className="btn secondary small" onClick={()=>setMany(months.map(m=>m.key),false)}>Collapse months</button></div>
               </div>
-
-              <div className="review-grid" style={{ marginTop: 12 }}>
-                <div className="summary-card">
-                  <h3>Income</h3>
-                  <div className="summary-row"><span>Total</span><strong>{money(month.incomeTotal)}</strong></div>
-                  {month.personIncomes.map((person) => (
-                    <div className="summary-row" key={person.id}><span>{person.name}</span><strong>{money(person.amount)}</strong></div>
-                  ))}
-                  <div className="muted" style={{ marginTop: 8 }}>{month.ratioText}</div>
-                </div>
-
-                <div className="summary-card">
-                  <h3>Expenses</h3>
-                  <div className="summary-row"><span>Tracked</span><strong>{money(month.trackedExpenses)}</strong></div>
-                  <div className="summary-row"><span>Excluded</span><strong>{money(month.excludedExpenses)}</strong></div>
-                  <div className="summary-row"><span>Entries</span><strong>{month.expenseCount}</strong></div>
-                </div>
-
-                <div className="summary-card">
-                  <h3>Status</h3>
-                  <div className="summary-row"><span>Settled</span><strong>{month.settled ? "Yes" : "No"}</strong></div>
-                  <div className="summary-row"><span>Locked</span><strong>{month.locked ? "Yes" : "No"}</strong></div>
-                  <div className="muted" style={{ marginTop: 8 }}>Open the month on the main page for the full Review and settlement calculation.</div>
-                </div>
+              <div className="expense-list">
+                {months.map((month) => {
+                  const open = isOpen(month.key);
+                  return (
+                    <article className="expense-item" key={month.key} style={{ cursor: "default" }}>
+                      <div className="expense-item-header">
+                        <button type="button" onClick={()=>toggleMonth(month.key)} style={{ border:0, background:"transparent", textAlign:"left", padding:0, flex:1, cursor:"pointer" }}>
+                          <div className="expense-title">{monthLabel(month.key)}</div>
+                          <div className="expense-meta">{month.key} · {month.status}{!open ? ` · Income ${money(month.incomeTotal)} · Tracked ${money(month.trackedExpenses)}` : ""}</div>
+                        </button>
+                        <div className="action-row"><a className="btn secondary small" href={`/api/export/${month.key}`}>Export CSV</a><button className="btn secondary small" onClick={()=>toggleMonth(month.key)}>{open ? "Collapse" : "Expand"}</button></div>
+                      </div>
+                      {open && <div className="review-grid" style={{ marginTop:12 }}>
+                        <div className="summary-card"><h3>Income</h3><div className="summary-row"><span>Total</span><strong>{money(month.incomeTotal)}</strong></div>{month.personIncomes.map(p=><div className="summary-row" key={p.id}><span>{p.name}</span><strong>{money(p.amount)}</strong></div>)}<div className="muted" style={{marginTop:8}}>{month.ratioText}</div></div>
+                        <div className="summary-card"><h3>Expenses</h3><div className="summary-row"><span>Tracked</span><strong>{money(month.trackedExpenses)}</strong></div><div className="summary-row"><span>Excluded</span><strong>{money(month.excludedExpenses)}</strong></div><div className="summary-row"><span>Entries</span><strong>{month.expenseCount}</strong></div></div>
+                        <div className="summary-card"><h3>Status</h3><div className="summary-row"><span>Settled</span><strong>{month.settled?"Yes":"No"}</strong></div><div className="summary-row"><span>Locked</span><strong>{month.locked?"Yes":"No"}</strong></div></div>
+                      </div>}
+                    </article>
+                  );
+                })}
               </div>
-            </article>
+            </section>
           ))}
-          {!loading && !overview.length && <div className="muted">No monthly data found yet.</div>}
+          {!loading && !overview.length && <div className="muted">No months with expense data, settled status or locked status were found.</div>}
         </div>
       </section>
     </main>
   );
 }
-
